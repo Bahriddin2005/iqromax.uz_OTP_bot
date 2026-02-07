@@ -1,0 +1,30 @@
+{
+  "language": {
+    "code": "uz",
+    "name": "O'zbekcha",
+    "flag": "🇺🇿"
+  },
+  "messages": {
+    "welcome": "🎉 Assalomu alaykum, {name}!\n\niqromax.uz OTP tasdiqlash botiga xush kelibsiz!",
+    "help": "📚 Yordam\n\nMavjud buyruqlar:\n/start - Botni ishga tushirish\n/help - Yordam\n/language - Tilni o'zgartirish",
+    "otp_sent": "✅ OTP kod yuborildi",
+    "otp_verified": "✅ OTP muvaffaqiyatli tasdiqlandi!",
+    "otp_invalid": "❌ Noto'g'ri kod. Qolgan urinishlar: {remaining}",
+    "otp_expired": "⏰ Kod muddati tugagan",
+    "error": "❌ Xatolik yuz berdi"
+  },
+  "buttons": {
+    "help": "❓ Yordam",
+    "language": "🌐 Til",
+    "status": "📊 OTP holati",
+    "admin": "👨‍💼 Admin",
+    "cancel": "❌ Bekor qilish",
+    "back": "⬅️ Orqaga"
+  },
+  "admin": {
+    "panel_title": "👨‍💼 Admin Panel",
+    "statistics": "📊 Statistika",
+    "users": "👥 Foydalanuvchilar",
+    "broadcast": "📢 Xabar yuborish"
+  }
+}

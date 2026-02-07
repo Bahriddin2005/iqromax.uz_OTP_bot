@@ -1,0 +1,30 @@
+{
+  "language": {
+    "code": "en",
+    "name": "English",
+    "flag": "🇬🇧"
+  },
+  "messages": {
+    "welcome": "🎉 Hello, {name}!\n\nWelcome to the iqromax.uz OTP verification bot!",
+    "help": "📚 Help\n\nAvailable commands:\n/start - Start the bot\n/help - Help\n/language - Change language",
+    "otp_sent": "✅ OTP code sent",
+    "otp_verified": "✅ OTP verified successfully!",
+    "otp_invalid": "❌ Invalid code. Remaining attempts: {remaining}",
+    "otp_expired": "⏰ Code has expired",
+    "error": "❌ An error occurred"
+  },
+  "buttons": {
+    "help": "❓ Help",
+    "language": "🌐 Language",
+    "status": "📊 OTP Status",
+    "admin": "👨‍💼 Admin",
+    "cancel": "❌ Cancel",
+    "back": "⬅️ Back"
+  },
+  "admin": {
+    "panel_title": "👨‍💼 Admin Panel",
+    "statistics": "📊 Statistics",
+    "users": "👥 Users",
+    "broadcast": "📢 Broadcast"
+  }
+}
