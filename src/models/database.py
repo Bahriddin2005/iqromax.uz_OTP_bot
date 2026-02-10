@@ -189,9 +189,28 @@ def get_db() -> Session:
 
 def init_db():
     """
-    Initialize database tables
+    Initialize database tables and run migrations
     """
     Base.metadata.create_all(bind=engine)
+    _migrate_add_website_registered_at()
+
+
+def _migrate_add_website_registered_at():
+    """
+    Add website_registered_at column if missing (migration for existing DB)
+    """
+    from sqlalchemy import text, inspect
+    insp = inspect(engine)
+    if "users" not in insp.get_table_names():
+        return
+    cols = [c["name"] for c in insp.get_columns("users")]
+    if "website_registered_at" in cols:
+        return
+    # SQLite: DATETIME, PostgreSQL: TIMESTAMP
+    col_type = "DATETIME" if "sqlite" in str(engine.url) else "TIMESTAMP"
+    with engine.connect() as conn:
+        conn.execute(text(f"ALTER TABLE users ADD COLUMN website_registered_at {col_type}"))
+        conn.commit()
 
 
 def drop_db():

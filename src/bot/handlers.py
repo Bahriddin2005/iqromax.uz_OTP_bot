@@ -451,9 +451,10 @@ async def handle_other_content(message: Message):
 # ==========================================
 
 @router.error()
-async def error_handler(event, exception):
+async def error_handler(event, **kwargs):
     """
-    Handle errors in handlers
+    Handle errors in handlers. Event is ErrorEvent with .exception attribute.
     """
-    logger.error(f"Error in handler: {exception}", exc_info=True)
+    exc = getattr(event, "exception", event)
+    logger.error(f"Error in handler: {exc}", exc_info=True)
     return True
