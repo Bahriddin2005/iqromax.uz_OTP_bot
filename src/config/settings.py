@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     # Supabase (for creating auth.users for Telegram signup)
     SUPABASE_URL: Optional[str] = Field(default=None, description="Supabase project URL")
     SUPABASE_SERVICE_ROLE_KEY: Optional[str] = Field(default=None, description="Supabase service role key (admin)")
+    USE_SUPABASE: bool = Field(default=False, description="Force Supabase mode (skip create_all, use UUID schema)")
     
     # Redis
     REDIS_URL: str = Field(

@@ -46,7 +46,26 @@ Keep Redis for:
 - Rate limiting
 - Cooldown
 
-## 5. Verify
+## 5. Docker with Supabase
+
+In `.env` or docker-compose:
+```env
+DATABASE_URL=postgresql://postgres.[ref]:[pw]@aws-0-[region].pooler.supabase.com:6543/postgres
+USE_SUPABASE=1
+SUPABASE_URL=https://[project-ref].supabase.co
+SUPABASE_SERVICE_ROLE_KEY=...
+```
+
+## 6. Docker with local PostgreSQL
+
+Default: `USE_SUPABASE=0`, tables created by `scripts/init-db.sql` (Integer schema).
+If you see "integer and uuid" error: your DB has wrong schema. Fix:
+```bash
+docker-compose down -v   # remove volumes
+docker-compose up -d     # fresh start with correct schema
+```
+
+## 7. Verify
 
 1. Start the app
 2. Send `/start` to the Telegram bot

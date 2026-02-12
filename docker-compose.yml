@@ -12,7 +12,11 @@ services:
       - "${PORT:-8000}:8000"
     environment:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/iqromax_otp
+      # Local PostgreSQL: DATABASE_URL below. For Supabase: override with SUPABASE_DATABASE_URL and USE_SUPABASE=1
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/iqromax_otp}
+      - USE_SUPABASE=${USE_SUPABASE:-0}
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
       - REDIS_URL=redis://redis:6379/0
       - API_SECRET_KEY=${API_SECRET_KEY}
       - ADMIN_TELEGRAM_IDS=${ADMIN_TELEGRAM_IDS}

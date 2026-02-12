@@ -9,8 +9,14 @@ from sqlalchemy.pool import QueuePool
 
 from src.config import settings
 
-# Detect backend (PostgreSQL/Supabase vs SQLite)
-USE_SUPABASE = "postgresql" in settings.DATABASE_URL
+# Detect backend: Supabase = USE_SUPABASE env, or URL contains supabase, or SUPABASE_URL set
+# Local PostgreSQL (Docker db) → use legacy Integer schema
+_url = settings.DATABASE_URL.lower()
+USE_SUPABASE = (
+    settings.USE_SUPABASE
+    or ("postgres" in _url and ("supabase.co" in _url or "pooler.supabase.com" in _url or "supabase.com" in _url))
+    or ("postgres" in _url and bool(settings.SUPABASE_URL))
+)
 
 if USE_SUPABASE:
     from src.models.supabase_models import (
