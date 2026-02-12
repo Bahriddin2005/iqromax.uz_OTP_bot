@@ -5,8 +5,9 @@ Core service for OTP generation, verification, and management
 
 import secrets
 import logging
-from datetime import datetime, timedelta
-from typing import Optional, Tuple
+from datetime import datetime, timedelta, timezone
+from typing import Optional, Tuple, Union
+from uuid import UUID
 from sqlalchemy.orm import Session
 
 from src.config import settings
@@ -56,22 +57,11 @@ class OTPService:
         phone_number: Optional[str] = None
     ) -> User:
         """
-        Get existing user or create new one
-        
-        Args:
-            telegram_id: User's Telegram ID
-            telegram_username: Telegram username
-            first_name: User's first name
-            last_name: User's last name
-            phone_number: Phone number
-        
-        Returns:
-            User: User object
+        Get existing user or create new one.
+        For Supabase: creates auth.users via Admin API, trigger syncs to public.users.
         """
         user = self.db.query(User).filter(User.telegram_id == telegram_id).first()
-        
         if user:
-            # Update user info if provided
             if telegram_username:
                 user.telegram_username = telegram_username
             if first_name:
@@ -80,11 +70,36 @@ class OTPService:
                 user.last_name = last_name
             if phone_number:
                 user.phone_number = phone_number
-            user.last_activity = datetime.utcnow()
+            user.last_activity = datetime.now(timezone.utc)
             self.db.commit()
             return user
-        
-        # Create new user
+
+        # Supabase: create via auth Admin API, then update public.users
+        if settings.SUPABASE_URL and settings.SUPABASE_SERVICE_ROLE_KEY:
+            from src.services.supabase_auth import create_telegram_user
+            auth_user_id = await create_telegram_user(
+                telegram_id=telegram_id,
+                telegram_username=telegram_username,
+                first_name=first_name,
+                last_name=last_name,
+                phone_number=phone_number,
+            )
+            if auth_user_id:
+                user = self.db.query(User).filter(User.id == auth_user_id).first()
+                if user:
+                    user.telegram_id = telegram_id
+                    user.telegram_username = telegram_username
+                    user.first_name = first_name
+                    user.last_name = last_name
+                    user.phone_number = phone_number
+                    user.language = "uz"
+                    user.last_activity = datetime.now(timezone.utc)
+                    self.db.commit()
+                    self.db.refresh(user)
+                    logger.info(f"New Supabase user created: telegram_id={telegram_id}")
+                    return user
+
+        # SQLite / legacy: create directly
         user = User(
             telegram_id=telegram_id,
             telegram_username=telegram_username,
@@ -95,7 +110,6 @@ class OTPService:
         self.db.add(user)
         self.db.commit()
         self.db.refresh(user)
-        
         logger.info(f"New user created: {telegram_id}")
         return user
     
@@ -135,9 +149,9 @@ class OTPService:
         Returns:
             Tuple: (can_request, reason, wait_seconds)
         """
-        # Check if user is blocked
+        # Check if user is blocked or suspended
         user = await self.get_user_by_telegram_id(telegram_id)
-        if user and user.is_blocked:
+        if user and (getattr(user, "is_blocked", False) or getattr(user, "is_suspended", False)):
             return False, "user_blocked", 0
         
         # Check cooldown (minimum time between requests)
@@ -201,7 +215,7 @@ class OTPService:
         otp_hashed = hash_otp(otp_code)
         
         # Calculate expiry time
-        expires_at = datetime.utcnow() + timedelta(minutes=settings.OTP_EXPIRY_MINUTES)
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.OTP_EXPIRY_MINUTES)
         
         # Create OTP request in database
         otp_request = OTPRequest(
@@ -319,7 +333,7 @@ class OTPService:
         
         # OTP is valid
         otp_request.status = OTPStatus.VERIFIED
-        otp_request.verified_at = datetime.utcnow()
+        otp_request.verified_at = datetime.now(timezone.utc)
         self.db.commit()
         
         # Clean up Redis (code lookup is deleted in verify_otp_by_code)
@@ -373,12 +387,12 @@ class OTPService:
         """Mark user as having completed website registration"""
         user = await self.get_user_by_telegram_id(telegram_id)
         if user:
-            user.website_registered_at = datetime.utcnow()
+            user.website_registered_at = datetime.now(timezone.utc)
             self.db.commit()
             self.db.refresh(user)
         return user
     
-    async def _invalidate_pending_otps(self, user_id: int):
+    async def _invalidate_pending_otps(self, user_id: Union[int, UUID]):
         """
         Invalidate all pending OTPs for a user
         
@@ -404,7 +418,7 @@ class OTPService:
         Args:
             stat_type: Type of statistic (sent, verified, expired, failed)
         """
-        today = datetime.utcnow().date()
+        today = datetime.now(timezone.utc).date()
         today_key = f"daily:{today.isoformat()}:{stat_type}"
         
         await redis_client.increment_stat(today_key)
@@ -435,13 +449,13 @@ class OTPService:
         ttl = await redis_client.client.ttl(f"otp:{telegram_id}")
         
         return {
-            "request_id": otp_request.id,
+            "request_id": str(otp_request.id),
             "status": otp_request.status.value,
             "attempts": otp_request.attempts,
             "max_attempts": otp_request.max_attempts,
             "remaining_attempts": otp_request.max_attempts - otp_request.attempts,
             "expires_in_seconds": max(ttl, 0),
-            "created_at": otp_request.created_at.isoformat()
+            "created_at": otp_request.created_at.isoformat() if otp_request.created_at else None
         }
     
     async def resend_otp(
@@ -477,7 +491,7 @@ class OTPService:
         """
         expired = self.db.query(OTPRequest).filter(
             OTPRequest.status == OTPStatus.PENDING,
-            OTPRequest.expires_at < datetime.utcnow()
+            OTPRequest.expires_at < datetime.now(timezone.utc)
         ).all()
         
         count = 0

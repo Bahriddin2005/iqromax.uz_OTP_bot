@@ -24,13 +24,17 @@ class Settings(BaseSettings):
     TELEGRAM_WEBHOOK_URL: Optional[str] = Field(default=None, description="Webhook URL for production")
     TELEGRAM_WEBHOOK_SECRET: Optional[str] = Field(default=None, description="Webhook secret token")
     
-    # Database - PostgreSQL
+    # Database - PostgreSQL (Supabase)
     DATABASE_URL: str = Field(
         default="postgresql://postgres:postgres@localhost:5432/iqromax_otp",
-        description="PostgreSQL connection string"
+        description="PostgreSQL/Supabase connection string"
     )
     DATABASE_POOL_SIZE: int = Field(default=10)
     DATABASE_MAX_OVERFLOW: int = Field(default=20)
+
+    # Supabase (for creating auth.users for Telegram signup)
+    SUPABASE_URL: Optional[str] = Field(default=None, description="Supabase project URL")
+    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = Field(default=None, description="Supabase service role key (admin)")
     
     # Redis
     REDIS_URL: str = Field(

@@ -15,7 +15,7 @@ from src.models import get_db, redis_client, User
 from src.services import get_otp_service
 from src.utils import (
     verify_api_key, validate_telegram_id, validate_telegram_username,
-    validate_otp_code, get_client_ip, brute_force
+    validate_otp_code, get_client_ip, brute_force, get_user_language
 )
 from src.bot import telegram_bot
 from src.api.schemas import (
@@ -223,7 +223,7 @@ async def send_otp(
     
     # Send OTP via Telegram bot
     user = await otp_service.get_user_by_telegram_id(telegram_id)
-    lang = user.language.value if user and user.language else "uz"
+    lang = get_user_language(user)
     
     sent = await telegram_bot.send_otp_message(telegram_id, otp_code, lang)
     
@@ -471,9 +471,10 @@ async def health_check():
     
     # Check database
     try:
+        from sqlalchemy import text
         from src.models import engine
         with engine.connect() as conn:
-            conn.execute("SELECT 1")
+            conn.execute(text("SELECT 1"))
         services["database"] = "connected"
     except Exception as e:
         services["database"] = f"error: {str(e)}"

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from src.config import settings
 from src.models import SessionLocal, User, Language
 from src.services import get_otp_service
-from src.utils import is_admin, validate_otp_code
+from src.utils import is_admin, validate_otp_code, get_user_language
 from src.bot.keyboards import (
     get_main_keyboard, get_language_keyboard,
     get_admin_keyboard, get_cancel_keyboard
@@ -105,7 +105,7 @@ async def handle_contact_share(message: Message):
         db: Session = SessionLocal()
         try:
             user = db.query(User).filter(User.telegram_id == user_id).first()
-            lang = user.language.value if user and user.language else "uz"
+            lang = get_user_language(user)
             await message.answer(get_text("error", lang))
         finally:
             db.close()
@@ -167,7 +167,8 @@ async def callback_language(callback: CallbackQuery):
         user = db.query(User).filter(User.telegram_id == user_id).first()
         
         if user:
-            user.language = Language(selected_lang)
+            from src.models import USE_SUPABASE
+            user.language = selected_lang if USE_SUPABASE else Language(selected_lang)
             db.commit()
             
             text = get_text("language_changed", selected_lang)

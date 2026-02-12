@@ -1,4 +1,5 @@
 """Utility modules"""
+from .user_helpers import get_user_language
 from .security import (
     generate_api_key, verify_api_key,
     generate_webhook_secret, verify_telegram_webhook,
@@ -12,6 +13,8 @@ from .security import (
 from .logging_config import setup_logging, get_logger, RequestLogger
 
 __all__ = [
+    # User
+    "get_user_language",
     # Security
     "generate_api_key", "verify_api_key",
     "generate_webhook_secret", "verify_telegram_webhook",

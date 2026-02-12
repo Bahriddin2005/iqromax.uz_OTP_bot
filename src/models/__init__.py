@@ -2,7 +2,7 @@
 from .database import (
     Base, engine, SessionLocal, get_db, init_db, drop_db,
     User, OTPRequest, OTPStatistics, AdminLog,
-    OTPStatus, Language
+    OTPStatus, Language, USE_SUPABASE
 )
 from .redis_client import (
     redis_client, RedisClient, get_redis,

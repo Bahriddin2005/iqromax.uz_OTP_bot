@@ -74,7 +74,7 @@ class RedisClient:
         self, 
         telegram_id: int, 
         otp_hash: str,
-        request_id: int,
+        request_id: int | str,
         expiry_minutes: int = None
     ) -> bool:
         """
@@ -95,7 +95,7 @@ class RedisClient:
         key = self._get_otp_key(telegram_id)
         data = {
             "hash": otp_hash,
-            "request_id": request_id,
+            "request_id": str(request_id) if request_id is not None else None,
             "attempts": 0,
             "max_attempts": settings.OTP_MAX_ATTEMPTS
         }
@@ -111,14 +111,14 @@ class RedisClient:
         self,
         code: str,
         telegram_id: int,
-        request_id: int,
+        request_id: int | str,
         expiry_seconds: int
     ) -> bool:
         """
         Store OTP code -> telegram_id lookup (website sends ONLY code, backend looks up identity)
         """
         key = self._get_otp_code_key(code)
-        data = {"telegram_id": telegram_id, "request_id": request_id}
+        data = {"telegram_id": telegram_id, "request_id": str(request_id) if request_id is not None else None}
         await self.client.setex(key, expiry_seconds, json.dumps(data))
         return True
     

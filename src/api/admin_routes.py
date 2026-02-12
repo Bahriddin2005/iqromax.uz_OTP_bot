@@ -13,7 +13,7 @@ from sqlalchemy import func
 
 from src.config import settings
 from src.models import get_db, redis_client, User, OTPRequest, OTPStatus, AdminLog
-from src.utils import verify_api_key
+from src.utils import verify_api_key, get_user_language
 from src.api.schemas import StatisticsResponse, ErrorResponse
 
 
@@ -300,15 +300,15 @@ async def list_users(
         ).scalar()
         
         users_data.append({
-            "id": user.id,
+            "id": str(user.id),
             "telegram_id": user.telegram_id,
             "username": user.telegram_username,
             "first_name": user.first_name,
             "last_name": user.last_name,
             "phone": user.phone_number,
-            "language": user.language.value if user.language else "uz",
-            "is_active": user.is_active,
-            "is_blocked": user.is_blocked,
+            "language": get_user_language(user),
+            "is_active": getattr(user, "is_active", not getattr(user, "is_suspended", False)),
+            "is_blocked": getattr(user, "is_blocked", False) or getattr(user, "is_suspended", False),
             "otp_requests": otp_count,
             "created_at": user.created_at.isoformat(),
             "last_activity": user.last_activity.isoformat() if user.last_activity else None
@@ -357,8 +357,8 @@ async def get_user_details(
     otp_history = []
     for otp in otp_requests:
         otp_history.append({
-            "id": otp.id,
-            "status": otp.status.value,
+            "id": str(otp.id),
+            "status": getattr(otp.status, "value", str(otp.status)),
             "attempts": otp.attempts,
             "source": otp.request_source,
             "created_at": otp.created_at.isoformat(),
@@ -369,16 +369,16 @@ async def get_user_details(
         "success": True,
         "data": {
             "user": {
-                "id": user.id,
+                "id": str(user.id),
                 "telegram_id": user.telegram_id,
                 "username": user.telegram_username,
                 "first_name": user.first_name,
                 "last_name": user.last_name,
                 "phone": user.phone_number,
-                "language": user.language.value if user.language else "uz",
+                "language": get_user_language(user),
                 "is_active": user.is_active,
                 "is_blocked": user.is_blocked,
-                "created_at": user.created_at.isoformat(),
+                "created_at": user.created_at.isoformat() if user.created_at else None,
                 "last_activity": user.last_activity.isoformat() if user.last_activity else None
             },
             "otp_history": otp_history

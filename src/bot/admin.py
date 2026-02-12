@@ -11,6 +11,7 @@ from sqlalchemy import func
 
 from src.models import User, OTPRequest, OTPStatus, OTPStatistics, AdminLog, redis_client
 from src.bot.locales import get_text
+from src.utils import get_user_language
 
 
 logger = logging.getLogger(__name__)
@@ -264,7 +265,7 @@ async def get_user_details(db: Session, telegram_id: int, lang: str = "uz") -> O
 <b>{get_text('username', lang)}:</b> {username}
 <b>{get_text('name', lang)}:</b> {user.first_name or "—"} {user.last_name or ""}
 <b>{get_text('phone', lang)}:</b> {user.phone_number or "—"}
-<b>{get_text('language', lang)}:</b> {user.language.value if user.language else "uz"}
+<b>{get_text('language', lang)}:</b> {get_user_language(user)}
 <b>{get_text('status', lang)}:</b> {status}
 
 <b>📊 {get_text('otp_stats', lang)}:</b>
