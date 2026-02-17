@@ -25,77 +25,50 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     # Welcome & General Messages
     # ==========================================
     "welcome": {
-        "uz": """🎉 Assalomu alaykum, {name}!
+        "uz": """Assalomu alaykum! 🎉
 
-<b>iqromax.uz</b> OTP tasdiqlash botiga xush kelibsiz!
+<b>IQROMAX</b> platformasiga xush kelibsiz!
 
-Bu bot orqali siz iqromax.uz saytida ro'yxatdan o'tishingizni tasdiqlashingiz mumkin.
+📱 Telefon raqamingizni ulashing va saytda ro'yxatdan o'ting.
 
-📌 <b>Qanday ishlaydi:</b>
-1. Saytda ro'yxatdan o'ting
-2. Bot sizga 6 xonali kod yuboradi
-3. Kodni saytga kiriting
-
-❓ Yordam uchun /help buyrug'ini yuboring.""",
+Saytda username sifatida Telegram username'ingizni kiritasiz, sizga OTP kod shu yerga keladi.""",
         
-        "ru": """🎉 Здравствуйте, {name}!
+        "ru": """Ассаламу алейкум! 🎉
 
-Добро пожаловать в бот подтверждения OTP <b>iqromax.uz</b>!
+Добро пожаловать на платформу <b>IQROMAX</b>!
 
-С помощью этого бота вы можете подтвердить регистрацию на сайте iqromax.uz.
+📱 Поделитесь своим номером телефона и зарегистрируйтесь на сайте.
 
-📌 <b>Как это работает:</b>
-1. Зарегистрируйтесь на сайте
-2. Бот отправит вам 6-значный код
-3. Введите код на сайте
-
-❓ Для помощи отправьте команду /help.""",
+На сайте введите свой Telegram username — OTP код придёт сюда.""",
         
-        "en": """🎉 Hello, {name}!
+        "en": """Assalomu alaykum! 🎉
 
-Welcome to the <b>iqromax.uz</b> OTP verification bot!
+Welcome to the <b>IQROMAX</b> platform!
 
-This bot helps you verify your registration on iqromax.uz website.
+📱 Share your phone number and register on the site.
 
-📌 <b>How it works:</b>
-1. Register on the website
-2. Bot will send you a 6-digit code
-3. Enter the code on the website
-
-❓ For help, send /help command.""",
+On the site, enter your Telegram username — OTP code will come here.""",
         
-        "kk": """🎉 Сәлем, {name}!
+        "kk": """Ассаламуалейкум! 🎉
 
-<b>iqromax.uz</b> OTP растау ботіне қош келдіңіз!
+<b>IQROMAX</b> платформасына қош келдіңіз!
 
-Осы бот арқылы iqromax.uz сайтында тіркелуіңізді растай аласыз.
-
-📌 <b>Қалай жұмыс істейді:</b>
-1. Сайтта тіркеліңіз
-2. Бот сізге 6 таңбалы код жібереді
-3. Кодты сайтқа енгізіңіз""",
+📱 Телефон нөміріңізді бөлісіп, сайтта тіркеліңіз.
+Сайтта Telegram username енгізіңіз — OTP коды осы жерге келеді.""",
         
-        "ky": """🎉 Салам, {name}!
+        "ky": """Ассаламуалейкум! 🎉
 
-<b>iqromax.uz</b> OTP ырастоо ботине кош келиңиз!
+<b>IQROMAX</b> платформасына кош келиңиз!
 
-Бул бот аркылуу iqromax.uz сайтында катталууңузду ырастай аласыз.
-
-📌 <b>Кантип иштейт:</b>
-1. Сайтта катталыңыз
-2. Бот сизге 6 сандык код жөнөйт
-3. Кодду сайтта киргизиңиз""",
+📱 Телефон номериңизди бөлүшүп, сайтта катталыңыз.
+Сайтта Telegram username киргизиңиз — OTP коду бул жерге келет.""",
         
-        "tg": """🎉 Салом, {name}!
+        "tg": """Ассаламуалейкум! 🎉
 
-Ба боти тасдиқи OTP <b>iqromax.uz</b> хуш омадед!
+Ба платформаи <b>IQROMAX</b> хуш омадед!
 
-Ин бот ба шумо имкон медиҳад ки дар сомонаи iqromax.uz ба сабт шудан тасдиқ кунед.
-
-📌 <b>Чӣ гуна кор мекунад:</b>
-1. Дар сомона сабт шавед
-2. Бот ба шумо рамзи 6 рақамӣ мефиристад
-3. Рамзро дар сомона ворид кунед"""
+📱 Рақами телефонро мубодила кунед ва дар сомона сабт шавед.
+Дар сомона Telegram username ворид кунед — рамзи OTP ба ин ҷо меояд."""
     },
     
     "help": {
@@ -576,12 +549,30 @@ Select one of the actions:"""
     },
     
     "phone_saved": {
-        "uz": "✅ Telefon raqamingiz saqlandi: {phone}",
-        "ru": "✅ Ваш номер телефона сохранён: {phone}",
-        "en": "✅ Your phone number saved: {phone}",
-        "kk": "✅ Телефон нөміріңіз сақталды: {phone}",
-        "ky": "✅ Телефон номериңиз сакталды: {phone}",
-        "tg": "✅ Рақами телефон шумо захира шуд: {phone}"
+        "uz": """✅ Telefon raqamingiz saqlandi!
+
+Endi saytda ro'yxatdan o'tishda Telegram username'ingizni kiriting.
+Sizga OTP kod shu yerga keladi.""",
+        "ru": """✅ Ваш номер телефона сохранён!
+
+Теперь при регистрации на сайте введите свой Telegram username.
+OTP код придёт сюда.""",
+        "en": """✅ Your phone number is saved!
+
+Now enter your Telegram username when registering on the site.
+OTP code will come here.""",
+        "kk": """✅ Телефон нөміріңіз сақталды!
+
+Енді сайтта тіркелу кезінде Telegram username енгізіңіз.
+OTP коды осы жерге келеді.""",
+        "ky": """✅ Телефон номериңиз сакталды!
+
+Эми сайтта катталууда Telegram username киргизиңиз.
+OTP коду бул жерге келет.""",
+        "tg": """✅ Рақами телефон шумо захира шуд!
+
+Акнун дар сомона сабт шудан Telegram username ворид кунед.
+Рамзи OTP ба ин ҷо меояд."""
     },
     
     "error": {

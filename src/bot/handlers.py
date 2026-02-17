@@ -60,9 +60,7 @@ async def cmd_start(message: Message, state: FSMContext):
         lang = user.language.value if user.language else "uz"
         
         # Send welcome message
-        welcome_text = get_text("welcome", lang).format(
-            name=first_name or username or "Foydalanuvchi"
-        )
+        welcome_text = get_text("welcome", lang)
         
         await message.answer(
             welcome_text,
@@ -117,15 +115,16 @@ async def handle_contact_share(message: Message):
     
     db: Session = SessionLocal()
     try:
-        user = db.query(User).filter(User.telegram_id == user_id).first()
-        if user:
-            user.phone_number = phone
-            db.commit()
-            lang = user.language.value if user.language else "uz"
-            await message.answer(get_text("phone_saved", lang).format(phone=phone))
-        else:
-            lang = "uz"
-            await message.answer(get_text("error", lang))
+        otp_service = get_otp_service(db)
+        user = await otp_service.get_or_create_user(
+            telegram_id=user_id,
+            telegram_username=message.from_user.username,
+            first_name=message.from_user.first_name,
+            last_name=message.from_user.last_name,
+            phone_number=phone
+        )
+        lang = get_user_language(user)
+        await message.answer(get_text("phone_saved", lang))
     finally:
         db.close()
 
