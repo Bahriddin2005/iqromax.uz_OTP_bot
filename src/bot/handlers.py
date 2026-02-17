@@ -57,7 +57,7 @@ async def cmd_start(message: Message, state: FSMContext):
         )
         
         # Get user's language preference
-        lang = user.language.value if user.language else "uz"
+        lang = get_user_language(user)
         
         # Send welcome message
         welcome_text = get_text("welcome", lang)
@@ -81,7 +81,7 @@ async def cmd_help(message: Message):
     db: Session = SessionLocal()
     try:
         user = db.query(User).filter(User.telegram_id == user_id).first()
-        lang = user.language.value if user and user.language else "uz"
+        lang = get_user_language(user)
         
         help_text = get_text("help", lang)
         await message.answer(help_text)
@@ -140,7 +140,7 @@ async def cmd_language(message: Message):
     db: Session = SessionLocal()
     try:
         user = db.query(User).filter(User.telegram_id == user_id).first()
-        lang = user.language.value if user and user.language else "uz"
+        lang = get_user_language(user)
         
         text = get_text("select_language", lang)
         await message.answer(text, reply_markup=get_language_keyboard())
@@ -198,7 +198,7 @@ async def cmd_status(message: Message):
     db: Session = SessionLocal()
     try:
         user = db.query(User).filter(User.telegram_id == user_id).first()
-        lang = user.language.value if user and user.language else "uz"
+        lang = get_user_language(user)
         
         otp_service = get_otp_service(db)
         status = await otp_service.get_otp_status(user_id)
@@ -239,7 +239,7 @@ async def cmd_admin(message: Message):
     db: Session = SessionLocal()
     try:
         user = db.query(User).filter(User.telegram_id == user_id).first()
-        lang = user.language.value if user and user.language else "uz"
+        lang = get_user_language(user)
         
         text = get_text("admin_panel", lang)
         await message.answer(text, reply_markup=get_admin_keyboard(lang))
@@ -265,7 +265,7 @@ async def cmd_stats(message: Message):
     db: Session = SessionLocal()
     try:
         user = db.query(User).filter(User.telegram_id == user_id).first()
-        lang = user.language.value if user and user.language else "uz"
+        lang = get_user_language(user)
         
         stats_text = await get_statistics_text(db, lang)
         await message.answer(stats_text, parse_mode="HTML")
@@ -291,7 +291,7 @@ async def cmd_users(message: Message):
     db: Session = SessionLocal()
     try:
         user = db.query(User).filter(User.telegram_id == user_id).first()
-        lang = user.language.value if user and user.language else "uz"
+        lang = get_user_language(user)
         
         users_text = await get_users_text(db, lang)
         await message.answer(users_text, parse_mode="HTML")
@@ -320,7 +320,7 @@ async def callback_admin_stats(callback: CallbackQuery):
     db: Session = SessionLocal()
     try:
         user = db.query(User).filter(User.telegram_id == user_id).first()
-        lang = user.language.value if user and user.language else "uz"
+        lang = get_user_language(user)
         
         stats_text = await get_statistics_text(db, lang)
         await callback.message.edit_text(stats_text, parse_mode="HTML")
@@ -346,7 +346,7 @@ async def callback_admin_users(callback: CallbackQuery):
     db: Session = SessionLocal()
     try:
         user = db.query(User).filter(User.telegram_id == user_id).first()
-        lang = user.language.value if user and user.language else "uz"
+        lang = get_user_language(user)
         
         users_text = await get_users_text(db, lang)
         await callback.message.edit_text(users_text, parse_mode="HTML")
@@ -370,7 +370,7 @@ async def callback_admin_back(callback: CallbackQuery):
     db: Session = SessionLocal()
     try:
         user = db.query(User).filter(User.telegram_id == user_id).first()
-        lang = user.language.value if user and user.language else "uz"
+        lang = get_user_language(user)
         
         text = get_text("admin_panel", lang)
         await callback.message.edit_text(text, reply_markup=get_admin_keyboard(lang))
@@ -395,12 +395,21 @@ async def handle_text_message(message: Message):
     db: Session = SessionLocal()
     try:
         user = db.query(User).filter(User.telegram_id == user_id).first()
-        lang = user.language.value if user and user.language else "uz"
+        lang = get_user_language(user)
         
         # Til tugmasi bosilganida - barcha tillardagi "Til" tugmasi matnini tekshirish
         if any(text == get_text("btn_language", l) for l in LANGUAGES):
             lang_text = get_text("select_language", lang)
             await message.answer(lang_text, reply_markup=get_language_keyboard())
+            return
+        
+        # Admin tugmasi bosilganida
+        if any(text == get_text("btn_admin", l) for l in LANGUAGES):
+            if is_admin(user_id):
+                text_admin = get_text("admin_panel", lang)
+                await message.answer(text_admin, reply_markup=get_admin_keyboard(lang))
+            else:
+                await message.answer("⛔ Sizda admin huquqi yo'q.")
             return
         
         # Check if it looks like an OTP code
@@ -440,7 +449,7 @@ async def handle_other_content(message: Message):
     db: Session = SessionLocal()
     try:
         user = db.query(User).filter(User.telegram_id == message.from_user.id).first()
-        lang = user.language.value if user and user.language else "uz"
+        lang = get_user_language(user)
         await message.answer(get_text("unknown_message", lang))
     finally:
         db.close()

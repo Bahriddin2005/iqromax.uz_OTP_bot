@@ -4,6 +4,7 @@ Redis for OTP caching, rate limiting, and session management
 """
 
 import json
+import hmac
 import hashlib
 from datetime import timedelta
 from typing import Optional, Any
@@ -112,13 +113,19 @@ class RedisClient:
         code: str,
         telegram_id: int,
         request_id: int | str,
-        expiry_seconds: int
+        expiry_seconds: int,
+        otp_hash: Optional[str] = None
     ) -> bool:
         """
-        Store OTP code -> telegram_id lookup (website sends ONLY code, backend looks up identity)
+        Store OTP code -> telegram_id, request_id, hash (website sends ONLY code, backend looks up identity).
+        Include otp_hash for fast single-Redis verify path.
         """
         key = self._get_otp_code_key(code)
-        data = {"telegram_id": telegram_id, "request_id": str(request_id) if request_id is not None else None}
+        data = {
+            "telegram_id": telegram_id,
+            "request_id": str(request_id) if request_id is not None else None,
+            "hash": otp_hash
+        }
         await self.client.setex(key, expiry_seconds, json.dumps(data))
         return True
     
@@ -325,6 +332,46 @@ class RedisClient:
     # Statistics
     # ==========================================
     
+    async def store_otp_batch(
+        self,
+        telegram_id: int,
+        otp_hash: str,
+        request_id: int | str,
+        code: str,
+        expiry_minutes: int,
+        expiry_seconds: int,
+        cooldown_minutes: int = 1
+    ) -> None:
+        """
+        Store OTP data in a single pipeline (4 ops -> 1 round-trip).
+        Faster than 4 separate Redis calls.
+        """
+        pipe = self.client.pipeline()
+        key_otp = self._get_otp_key(telegram_id)
+        data_otp = {
+            "hash": otp_hash,
+            "request_id": str(request_id) if request_id else None,
+            "attempts": 0,
+            "max_attempts": settings.OTP_MAX_ATTEMPTS
+        }
+        pipe.setex(key_otp, timedelta(minutes=expiry_minutes), json.dumps(data_otp))
+        key_code = self._get_otp_code_key(code)
+        data_code = {
+            "telegram_id": telegram_id,
+            "request_id": str(request_id) if request_id else None,
+            "hash": otp_hash
+        }
+        pipe.setex(key_code, expiry_seconds, json.dumps(data_code))
+        pipe.setex(
+            self._get_cooldown_key(telegram_id),
+            timedelta(minutes=cooldown_minutes),
+            "1"
+        )
+        rate_key = self._get_rate_limit_key(telegram_id, "otp")
+        pipe.incr(rate_key)
+        pipe.expire(rate_key, timedelta(hours=1))
+        await pipe.execute()
+
     async def increment_stat(self, stat_name: str, increment: int = 1) -> int:
         """
         Increment a statistics counter
@@ -398,7 +445,7 @@ def hash_otp(otp: str) -> str:
 
 def verify_otp_hash(otp: str, otp_hash: str) -> bool:
     """
-    Verify OTP against stored hash
+    Verify OTP against stored hash (constant-time, timing-attack safe)
     
     Args:
         otp: Plain text OTP to verify
@@ -407,4 +454,4 @@ def verify_otp_hash(otp: str, otp_hash: str) -> bool:
     Returns:
         bool: True if match
     """
-    return hash_otp(otp) == otp_hash
+    return hmac.compare_digest(hash_otp(otp), otp_hash)

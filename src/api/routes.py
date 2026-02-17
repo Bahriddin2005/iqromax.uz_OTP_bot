@@ -130,8 +130,9 @@ async def send_otp(
     # Get telegram_id from username if not provided
     telegram_id = body.telegram_id
     
+    user = None
     if not telegram_id and body.telegram_username:
-        # Look up user by username
+        # Look up user by username (case-insensitive)
         username = validate_telegram_username(body.telegram_username)
         if not username:
             raise HTTPException(
@@ -143,7 +144,8 @@ async def send_otp(
                 }
             )
         
-        user = db.query(User).filter(User.telegram_username == username).first()
+        otp_service = get_otp_service(db)
+        user = await otp_service.get_user_by_username(username)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -168,12 +170,14 @@ async def send_otp(
         )
     
     # Create OTP (identity from DB only - body.name NOT trusted)
+    # Pass user if pre-fetched (username path) - skips redundant get_or_create_user
     otp_service = get_otp_service(db)
     otp_code, otp_request, status_msg = await otp_service.create_otp_request(
         telegram_id=telegram_id,
         request_source=body.source,
         ip_address=client_ip,
-        user_agent=user_agent
+        user_agent=user_agent,
+        user=user
     )
     
     # Handle different statuses

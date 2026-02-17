@@ -9,6 +9,7 @@ from typing import Optional
 
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
+from aiogram.types import BotCommand
 from aiogram.client.default import DefaultBotProperties
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
@@ -59,6 +60,15 @@ class TelegramBot:
         
         # Include routers
         self.dp.include_router(router)
+        
+        # Set bot menu commands (Telegram "Menu" button)
+        commands = [
+            BotCommand(command="start", description="Botni ishga tushirish"),
+            BotCommand(command="help", description="Yordam"),
+            BotCommand(command="language", description="Tilni o'zgartirish"),
+            BotCommand(command="status", description="OTP holati"),
+        ]
+        await self.bot.set_my_commands(commands)
         
         logger.info(f"Bot initialized: {settings.APP_NAME}")
     

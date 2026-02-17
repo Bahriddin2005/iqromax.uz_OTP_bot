@@ -1,0 +1,16 @@
+# Force LF line endings for all text files (cross-platform consistency)
+* text=auto eol=lf
+
+# Explicitly ensure common source files use LF
+*.py text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.sql text eol=lf
+*.env text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.ico binary

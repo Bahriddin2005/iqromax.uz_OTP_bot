@@ -3,6 +3,7 @@ iqromax.uz OTP Bot - OTP Service
 Core service for OTP generation, verification, and management
 """
 
+import asyncio
 import secrets
 import logging
 from datetime import datetime, timedelta, timezone
@@ -127,7 +128,7 @@ class OTPService:
     
     async def get_user_by_username(self, username: str) -> Optional[User]:
         """
-        Get user by Telegram username
+        Get user by Telegram username (case-insensitive)
         
         Args:
             username: Telegram username (with or without @)
@@ -135,9 +136,9 @@ class OTPService:
         Returns:
             User or None
         """
-        # Remove @ if present
-        username = username.lstrip("@")
-        return self.db.query(User).filter(User.telegram_username == username).first()
+        from sqlalchemy import func
+        username = username.lstrip("@").lower()
+        return self.db.query(User).filter(func.lower(User.telegram_username) == username).first()
     
     async def can_request_otp(self, telegram_id: int) -> Tuple[bool, str, int]:
         """
@@ -174,7 +175,8 @@ class OTPService:
         first_name: Optional[str] = None,
         request_source: str = "web_registration",
         ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
+        user_agent: Optional[str] = None,
+        user: Optional[User] = None
     ) -> Tuple[Optional[str], Optional[OTPRequest], str]:
         """
         Create a new OTP request
@@ -186,6 +188,7 @@ class OTPService:
             request_source: Source of the request
             ip_address: Client IP address
             user_agent: Client user agent
+            user: Optional pre-fetched user (skips get_or_create_user)
         
         Returns:
             Tuple: (otp_code, otp_request, status_message)
@@ -200,12 +203,13 @@ class OTPService:
             elif reason == "rate_limit":
                 return None, None, f"rate_limit:{wait_seconds}"
         
-        # Get or create user
-        user = await self.get_or_create_user(
-            telegram_id=telegram_id,
-            telegram_username=telegram_username,
-            first_name=first_name
-        )
+        # Get or create user (skip if pre-fetched)
+        if user is None:
+            user = await self.get_or_create_user(
+                telegram_id=telegram_id,
+                telegram_username=telegram_username,
+                first_name=first_name
+            )
         
         # Invalidate any existing pending OTP
         await self._invalidate_pending_otps(user.id)
@@ -232,30 +236,20 @@ class OTPService:
         self.db.commit()
         self.db.refresh(otp_request)
         
-        # Store in Redis for fast verification
+        # Store in Redis (single pipeline - 4 ops in 1 round-trip)
         expiry_seconds = settings.OTP_EXPIRY_MINUTES * 60
-        await redis_client.store_otp(
+        await redis_client.store_otp_batch(
             telegram_id=telegram_id,
             otp_hash=otp_hashed,
             request_id=otp_request.id,
-            expiry_minutes=settings.OTP_EXPIRY_MINUTES
-        )
-        # Code->telegram_id lookup: website sends ONLY code, backend resolves identity
-        await redis_client.store_otp_code_lookup(
             code=otp_code,
-            telegram_id=telegram_id,
-            request_id=otp_request.id,
-            expiry_seconds=expiry_seconds
+            expiry_minutes=settings.OTP_EXPIRY_MINUTES,
+            expiry_seconds=expiry_seconds,
+            cooldown_minutes=settings.OTP_RATE_LIMIT_MINUTES
         )
         
-        # Set cooldown
-        await redis_client.set_cooldown(telegram_id)
-        
-        # Increment rate limit counter
-        await redis_client.increment_rate_limit(telegram_id)
-        
-        # Update statistics
-        await self._update_statistics("sent")
+        # Update statistics (fire-and-forget - don't block response)
+        asyncio.create_task(self._update_statistics("sent"))
         
         logger.info(f"OTP created for user {telegram_id}, request_id: {otp_request.id}")
         
@@ -352,29 +346,78 @@ class OTPService:
     ) -> Tuple[bool, str, Optional[User], Optional[OTPRequest]]:
         """
         Verify OTP by code only (website sends ONLY code - no telegram_id/username).
-        Identity is resolved from OTP record.
+        Identity from Redis code lookup. Uses hash in lookup for single-Redis verify path.
         
         Returns:
             Tuple: (is_valid, status_message, user, otp_request)
         """
-        # Look up telegram_id from code (NOT from frontend)
+        # Single Redis get: code -> telegram_id, request_id, hash
         lookup = await redis_client.get_otp_code_lookup(otp_code)
         if not lookup:
             logger.warning("OTP code lookup failed - wrong/expired code")
             return False, "otp_not_found", None, None
         
         telegram_id = lookup["telegram_id"]
+        request_id = lookup.get("request_id")
+        lookup_hash = lookup.get("hash")
         
-        # Verify OTP
-        is_valid, status_msg, otp_request = await self.verify_otp(telegram_id, otp_code)
+        # Get OTP request from DB (request_id may be str from Redis)
+        otp_request = None
+        if request_id:
+            try:
+                rid = UUID(str(request_id)) if "-" in str(request_id) else int(request_id)
+            except (ValueError, TypeError):
+                rid = request_id
+            otp_request = self.db.query(OTPRequest).filter(OTPRequest.id == rid).first()
         
-        if not is_valid:
-            return False, status_msg, None, otp_request
+        if not otp_request:
+            return False, "otp_not_found", None, None
         
-        # Delete code lookup (OTP used, prevent replay)
+        if otp_request.status == OTPStatus.VERIFIED:
+            return False, "already_verified", None, otp_request
+        
+        if otp_request.is_expired:
+            otp_request.status = OTPStatus.EXPIRED
+            self.db.commit()
+            await redis_client.delete_otp(telegram_id)
+            await redis_client.delete_otp_code_lookup(otp_code)
+            await self._update_statistics("expired")
+            return False, "otp_expired", None, otp_request
+        
+        if not otp_request.has_attempts_left:
+            otp_request.status = OTPStatus.FAILED
+            self.db.commit()
+            await redis_client.delete_otp(telegram_id)
+            await redis_client.delete_otp_code_lookup(otp_code)
+            await self._update_statistics("failed")
+            return False, "max_attempts_exceeded", None, otp_request
+        
+        # Verify hash (from lookup - no second Redis get)
+        check_hash = lookup_hash or (await redis_client.get_otp_data(telegram_id) or {}).get("hash")
+        if not check_hash or not verify_otp_hash(otp_code, check_hash):
+            otp_request.attempts += 1
+            self.db.commit()
+            await redis_client.increment_otp_attempts(telegram_id)
+            remaining = otp_request.max_attempts - otp_request.attempts
+            if remaining <= 0:
+                otp_request.status = OTPStatus.FAILED
+                self.db.commit()
+                await redis_client.delete_otp(telegram_id)
+                await redis_client.delete_otp_code_lookup(otp_code)
+                await self._update_statistics("failed")
+                return False, "max_attempts_exceeded", None, otp_request
+            return False, f"invalid_otp:{remaining}", None, otp_request
+        
+        # Valid OTP
+        otp_request.status = OTPStatus.VERIFIED
+        otp_request.verified_at = datetime.now(timezone.utc)
+        self.db.commit()
+        
+        await redis_client.delete_otp(telegram_id)
         await redis_client.delete_otp_code_lookup(otp_code)
+        asyncio.create_task(self._update_statistics("verified"))
+        logger.info(f"OTP verified for user {telegram_id}")
         
-        # Get user from DB (trusted source)
         user = await self.get_user_by_telegram_id(telegram_id)
         return True, "verified", user, otp_request
     
