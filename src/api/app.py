@@ -48,6 +48,7 @@ async def lifespan(app: FastAPI):
     if settings.TELEGRAM_WEBHOOK_URL:
         logger.info("Initializing Telegram bot (webhook mode)...")
         await telegram_bot.initialize()
+        await telegram_bot.setup_webhook()
     else:
         logger.info("Bot will be initialized by main process (polling mode)")
     
@@ -60,6 +61,7 @@ async def lifespan(app: FastAPI):
     
     # Stop bot only in webhook mode (in polling mode main.py stops it)
     if settings.TELEGRAM_WEBHOOK_URL:
+        await telegram_bot.remove_webhook()
         await telegram_bot.stop()
     
     # Disconnect Redis
@@ -269,9 +271,13 @@ async def root():
 @app.post("/webhook/telegram", include_in_schema=False)
 async def telegram_webhook(request: Request):
     """
-    Telegram webhook endpoint
-    Handled by aiogram's webhook handler
+    Telegram webhook endpoint - receives updates from Telegram.
+    Prevents TelegramConflictError: only webhook OR polling, never both.
     """
-    # This is handled by the bot's webhook setup
-    # This endpoint is just a placeholder for documentation
-    return {"status": "ok"}
+    from src.utils import verify_telegram_webhook
+    secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
+    if settings.TELEGRAM_WEBHOOK_SECRET and not verify_telegram_webhook(secret):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    body = await request.json()
+    await telegram_bot.process_webhook_update(body)
+    return {"ok": True}

@@ -91,11 +91,41 @@ class TelegramBot:
         except asyncio.CancelledError:
             logger.info("Polling cancelled")
         except Exception as e:
-            logger.error(f"Polling error: {e}")
+            err_msg = str(e).lower()
+            if "conflict" in err_msg or "getupdates" in err_msg:
+                logger.error(
+                    "TelegramConflictError: Boshqa joyda polling/webhook ishlayapti. "
+                    "Faqat bitta instance ishlashi kerak. Docker to'xtating yoki TELEGRAM_WEBHOOK_URL qo'ying."
+                )
             raise
         finally:
             self._running = False
     
+    async def setup_webhook(self) -> None:
+        """
+        Set webhook URL (for FastAPI/webhook mode). Call on app startup.
+        Stops Telegram from using getUpdates - prevents conflict with polling.
+        """
+        if not settings.TELEGRAM_WEBHOOK_URL:
+            return
+        if not self.bot:
+            await self.initialize()
+        await self.bot.set_webhook(
+            url=settings.TELEGRAM_WEBHOOK_URL,
+            secret_token=settings.TELEGRAM_WEBHOOK_SECRET,
+            drop_pending_updates=True
+        )
+        logger.info(f"Webhook set: {settings.TELEGRAM_WEBHOOK_URL}")
+
+    async def remove_webhook(self) -> None:
+        """Remove webhook on shutdown (optional)."""
+        if self.bot:
+            try:
+                await self.bot.delete_webhook()
+                logger.info("Webhook removed")
+            except Exception as e:
+                logger.warning(f"Could not remove webhook: {e}")
+
     async def start_webhook(self, host: str = None, port: int = None):
         """
         Start bot in webhook mode (for production)
@@ -214,6 +244,16 @@ class TelegramBot:
     def is_running(self) -> bool:
         """Check if bot is running"""
         return self._running
+
+    async def process_webhook_update(self, body: dict) -> None:
+        """
+        Process incoming webhook update (from FastAPI). Feed to dispatcher.
+        """
+        from aiogram.types import Update
+        if not self.bot or not self.dp:
+            await self.initialize()
+        update = Update.model_validate(body, context={"bot": self.bot})
+        await self.dp.feed_update(self.bot, update)
 
 
 # Global bot instance
