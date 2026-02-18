@@ -8,10 +8,9 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
-from sqlalchemy.orm import Session
 
 from src.config import settings
-from src.models import SessionLocal, User, Language
+from src.models import db_session, User, Language
 from src.services import get_otp_service
 from src.utils import is_admin, validate_otp_code, get_user_language
 from src.bot.keyboards import (
@@ -45,9 +44,7 @@ async def cmd_start(message: Message, state: FSMContext):
     
     logger.info(f"User started bot: {user_id} (@{username})")
     
-    # Get or create user in database
-    db: Session = SessionLocal()
-    try:
+    with db_session() as db:
         otp_service = get_otp_service(db)
         user = await otp_service.get_or_create_user(
             telegram_id=user_id,
@@ -55,20 +52,12 @@ async def cmd_start(message: Message, state: FSMContext):
             first_name=first_name,
             last_name=last_name
         )
-        
-        # Get user's language preference
         lang = get_user_language(user)
-        
-        # Send welcome message
         welcome_text = get_text("welcome", lang)
-        
         await message.answer(
             welcome_text,
             reply_markup=get_main_keyboard(lang, is_admin(user_id))
         )
-        
-    finally:
-        db.close()
 
 
 @router.message(Command("help"))
@@ -78,16 +67,10 @@ async def cmd_help(message: Message):
     """
     user_id = message.from_user.id
     
-    db: Session = SessionLocal()
-    try:
+    with db_session() as db:
         user = db.query(User).filter(User.telegram_id == user_id).first()
         lang = get_user_language(user)
-        
-        help_text = get_text("help", lang)
-        await message.answer(help_text)
-        
-    finally:
-        db.close()
+        await message.answer(get_text("help", lang))
 
 
 @router.message(F.contact)
@@ -100,21 +83,17 @@ async def handle_contact_share(message: Message):
     
     # Verify contact belongs to the sender (security)
     if contact.user_id != user_id:
-        db: Session = SessionLocal()
-        try:
+        with db_session() as db:
             user = db.query(User).filter(User.telegram_id == user_id).first()
             lang = get_user_language(user)
             await message.answer(get_text("error", lang))
-        finally:
-            db.close()
         return
     
     phone = contact.phone_number or ""
     if not phone.startswith("+"):
         phone = "+" + phone
     
-    db: Session = SessionLocal()
-    try:
+    with db_session() as db:
         otp_service = get_otp_service(db)
         user = await otp_service.get_or_create_user(
             telegram_id=user_id,
@@ -125,8 +104,6 @@ async def handle_contact_share(message: Message):
         )
         lang = get_user_language(user)
         await message.answer(get_text("phone_saved", lang))
-    finally:
-        db.close()
 
 
 @router.message(Command("language"))
@@ -137,16 +114,10 @@ async def cmd_language(message: Message):
     """
     user_id = message.from_user.id
     
-    db: Session = SessionLocal()
-    try:
+    with db_session() as db:
         user = db.query(User).filter(User.telegram_id == user_id).first()
         lang = get_user_language(user)
-        
-        text = get_text("select_language", lang)
-        await message.answer(text, reply_markup=get_language_keyboard())
-        
-    finally:
-        db.close()
+        await message.answer(get_text("select_language", lang), reply_markup=get_language_keyboard())
 
 
 @router.callback_query(F.data.startswith("lang:"))
@@ -161,10 +132,8 @@ async def callback_language(callback: CallbackQuery):
         await callback.answer("Invalid language")
         return
     
-    db: Session = SessionLocal()
-    try:
+    with db_session() as db:
         user = db.query(User).filter(User.telegram_id == user_id).first()
-        
         if user:
             from src.models import USE_SUPABASE
             user.language = selected_lang if USE_SUPABASE else Language(selected_lang)
@@ -182,9 +151,6 @@ async def callback_language(callback: CallbackQuery):
             )
         else:
             await callback.answer("User not found")
-            
-    finally:
-        db.close()
 
 
 @router.message(Command("status"))
@@ -195,28 +161,22 @@ async def cmd_status(message: Message):
     """
     user_id = message.from_user.id
     
-    db: Session = SessionLocal()
-    try:
+    with db_session() as db:
         user = db.query(User).filter(User.telegram_id == user_id).first()
         lang = get_user_language(user)
-        
         otp_service = get_otp_service(db)
         status = await otp_service.get_otp_status(user_id)
-        
-        if status:
-            text = get_text("otp_status", lang).format(
+        text = (
+            get_text("otp_status", lang).format(
                 status=status["status"],
                 attempts=status["attempts"],
                 max_attempts=status["max_attempts"],
-                expires_in=status["expires_in_seconds"]
+                expires_in=status["expires_in_seconds"],
             )
-        else:
-            text = get_text("no_active_otp", lang)
-        
+            if status
+            else get_text("no_active_otp", lang)
+        )
         await message.answer(text)
-        
-    finally:
-        db.close()
 
 
 # ==========================================
@@ -236,16 +196,10 @@ async def cmd_admin(message: Message):
         logger.warning(f"Unauthorized admin access attempt: {user_id}")
         return
     
-    db: Session = SessionLocal()
-    try:
+    with db_session() as db:
         user = db.query(User).filter(User.telegram_id == user_id).first()
         lang = get_user_language(user)
-        
-        text = get_text("admin_panel", lang)
-        await message.answer(text, reply_markup=get_admin_keyboard(lang))
-        
-    finally:
-        db.close()
+        await message.answer(get_text("admin_panel", lang), reply_markup=get_admin_keyboard(lang))
 
 
 @router.message(Command("stats"))
@@ -261,17 +215,12 @@ async def cmd_stats(message: Message):
         return
     
     from src.bot.admin import get_statistics_text
-    
-    db: Session = SessionLocal()
-    try:
+
+    with db_session() as db:
         user = db.query(User).filter(User.telegram_id == user_id).first()
         lang = get_user_language(user)
-        
         stats_text = await get_statistics_text(db, lang)
         await message.answer(stats_text, parse_mode="HTML")
-        
-    finally:
-        db.close()
 
 
 @router.message(Command("users"))
@@ -287,17 +236,12 @@ async def cmd_users(message: Message):
         return
     
     from src.bot.admin import get_users_text
-    
-    db: Session = SessionLocal()
-    try:
+
+    with db_session() as db:
         user = db.query(User).filter(User.telegram_id == user_id).first()
         lang = get_user_language(user)
-        
         users_text = await get_users_text(db, lang)
         await message.answer(users_text, parse_mode="HTML")
-        
-    finally:
-        db.close()
 
 
 # ==========================================
@@ -316,18 +260,13 @@ async def callback_admin_stats(callback: CallbackQuery):
         return
     
     from src.bot.admin import get_statistics_text
-    
-    db: Session = SessionLocal()
-    try:
+
+    with db_session() as db:
         user = db.query(User).filter(User.telegram_id == user_id).first()
         lang = get_user_language(user)
-        
         stats_text = await get_statistics_text(db, lang)
         await callback.message.edit_text(stats_text, parse_mode="HTML")
         await callback.answer()
-        
-    finally:
-        db.close()
 
 
 @router.callback_query(F.data == "admin:users")
@@ -342,18 +281,13 @@ async def callback_admin_users(callback: CallbackQuery):
         return
     
     from src.bot.admin import get_users_text
-    
-    db: Session = SessionLocal()
-    try:
+
+    with db_session() as db:
         user = db.query(User).filter(User.telegram_id == user_id).first()
         lang = get_user_language(user)
-        
         users_text = await get_users_text(db, lang)
         await callback.message.edit_text(users_text, parse_mode="HTML")
         await callback.answer()
-        
-    finally:
-        db.close()
 
 
 @router.callback_query(F.data == "admin:back")
@@ -367,17 +301,14 @@ async def callback_admin_back(callback: CallbackQuery):
         await callback.answer("⛔ Ruxsat yo'q", show_alert=True)
         return
     
-    db: Session = SessionLocal()
-    try:
+    with db_session() as db:
         user = db.query(User).filter(User.telegram_id == user_id).first()
         lang = get_user_language(user)
-        
-        text = get_text("admin_panel", lang)
-        await callback.message.edit_text(text, reply_markup=get_admin_keyboard(lang))
+        await callback.message.edit_text(
+            get_text("admin_panel", lang),
+            reply_markup=get_admin_keyboard(lang),
+        )
         await callback.answer()
-        
-    finally:
-        db.close()
 
 
 # ==========================================
@@ -391,9 +322,8 @@ async def handle_text_message(message: Message):
     """
     user_id = message.from_user.id
     text = (message.text or "").strip()
-    
-    db: Session = SessionLocal()
-    try:
+
+    with db_session() as db:
         user = db.query(User).filter(User.telegram_id == user_id).first()
         lang = get_user_language(user)
         
@@ -433,12 +363,8 @@ async def handle_text_message(message: Message):
             
             await message.answer(response)
         else:
-            # Unknown message
             response = get_text("unknown_message", lang)
             await message.answer(response)
-            
-    finally:
-        db.close()
 
 
 @router.message()
@@ -446,13 +372,10 @@ async def handle_other_content(message: Message):
     """
     Handle non-text messages (photos, stickers, etc.) to avoid "Update is not handled"
     """
-    db: Session = SessionLocal()
-    try:
+    with db_session() as db:
         user = db.query(User).filter(User.telegram_id == message.from_user.id).first()
         lang = get_user_language(user)
         await message.answer(get_text("unknown_message", lang))
-    finally:
-        db.close()
 
 
 # ==========================================

@@ -7,12 +7,13 @@ import asyncio
 import logging
 from typing import Optional
 
+from aiohttp import ClientTimeout, web
+
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.types import BotCommand
 from aiogram.client.default import DefaultBotProperties
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
-from aiohttp import web
 
 from src.config import settings
 from src.models import redis_client, init_db
@@ -49,10 +50,12 @@ class TelegramBot:
         logger.info("Connecting to Redis...")
         await redis_client.connect()
         
-        # Create bot instance
+        # Create bot instance (extended timeout for unstable networks)
+        timeout = ClientTimeout(total=60, sock_connect=15, sock_read=45)
         self.bot = Bot(
             token=settings.TELEGRAM_BOT_TOKEN,
-            default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+            default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+            timeout=timeout,
         )
         
         # Create dispatcher

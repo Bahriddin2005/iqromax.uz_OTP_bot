@@ -1,6 +1,6 @@
 """Database models and clients"""
 from .database import (
-    Base, engine, SessionLocal, get_db, init_db, drop_db,
+    Base, engine, SessionLocal, get_db, db_session, init_db, drop_db,
     User, OTPRequest, OTPStatistics, AdminLog,
     OTPStatus, Language, USE_SUPABASE
 )
@@ -11,7 +11,7 @@ from .redis_client import (
 
 __all__ = [
     # Database
-    "Base", "engine", "SessionLocal", "get_db", "init_db", "drop_db",
+    "Base", "engine", "SessionLocal", "get_db", "db_session", "init_db", "drop_db",
     # Models
     "User", "OTPRequest", "OTPStatistics", "AdminLog",
     # Enums
