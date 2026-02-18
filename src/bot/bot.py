@@ -13,6 +13,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.types import BotCommand
 from aiogram.client.default import DefaultBotProperties
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
 from src.config import settings
@@ -52,10 +53,11 @@ class TelegramBot:
         
         # Create bot instance (extended timeout for unstable networks)
         timeout = ClientTimeout(total=60, sock_connect=15, sock_read=45)
+        session = AiohttpSession(timeout=timeout)
         self.bot = Bot(
             token=settings.TELEGRAM_BOT_TOKEN,
             default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-            timeout=timeout,
+            session=session,
         )
         
         # Create dispatcher
